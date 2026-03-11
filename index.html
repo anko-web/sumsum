@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>食べた分計算するやつ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #f8fafc;
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+        }
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .input-field {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 pb-24">
+    <div class="max-w-2xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
+        <!-- Header -->
+        <div class="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 text-white text-center">
+            <h1 class="text-2xl font-bold tracking-tight">食べた分計算するやつ</h1>
+            <p class="text-blue-100 text-sm mt-1">定価と数量を入力してください</p>
+        </div>
+
+        <div class="p-4 md:p-8">
+            <!-- Labels (Hidden on Mobile) -->
+            <div class="hidden md:grid grid-cols-12 gap-4 mb-2 px-2 text-sm font-bold text-gray-500">
+                <div class="col-span-5 text-left">定価 (円)</div>
+                <div class="col-span-3 text-center">数量</div>
+                <div class="col-span-3 text-right">小計 (円)</div>
+                <div class="col-span-1"></div>
+            </div>
+
+            <!-- Input Rows -->
+            <div id="calculatorRows" class="space-y-3">
+                <!-- Row template (will be repeated 10 times via JS) -->
+            </div>
+
+            <!-- Tax Toggle -->
+            <div class="mt-8 flex items-center justify-between p-4 bg-blue-50 rounded-2xl border border-blue-100 shadow-sm">
+                <div class="flex items-center space-x-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    <span class="text-sm font-bold text-blue-800">消費税 (10%) を加算する</span>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="taxSwitch" class="sr-only peer" onchange="updateAll()">
+                    <div class="w-14 h-7 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+            </div>
+
+            <!-- Grand Total Section -->
+            <div class="mt-8 bg-gray-900 rounded-2xl p-6 text-white relative overflow-hidden shadow-lg">
+                <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <div class="text-gray-400 text-sm font-medium">合計金額</div>
+                        <div class="text-4xl font-black text-white">
+                            <span id="grandTotal">0</span><span class="text-xl ml-1 font-normal text-gray-400">円</span>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="resetAll()" class="flex-1 md:flex-none px-6 py-3 bg-gray-800 hover:bg-gray-700 text-white text-sm font-bold rounded-xl transition-colors border border-gray-700 active:scale-95">
+                            すべてリセット
+                        </button>
+                    </div>
+                </div>
+                <!-- Decorative Circle -->
+                <div class="absolute -right-8 -bottom-8 w-32 h-32 bg-blue-600 opacity-20 rounded-full"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const ROW_COUNT = 10;
+
+        // Initialize rows
+        function initRows() {
+            const container = document.getElementById('calculatorRows');
+            for (let i = 1; i <= ROW_COUNT; i++) {
+                const row = document.createElement('div');
+                row.className = 'grid grid-cols-12 gap-2 md:gap-4 items-center bg-gray-50 p-2 md:p-0 md:bg-transparent rounded-xl border border-gray-100 md:border-0';
+                row.innerHTML = `
+                    <div class="col-span-12 md:col-span-5">
+                        <span class="md:hidden text-[10px] text-gray-400 font-bold mb-1 block">商品 ${i} 定価</span>
+                        <input type="number" id="price-${i}" placeholder="0" 
+                            class="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-lg transition-all input-field bg-white"
+                            oninput="updateAll()">
+                    </div>
+                    <div class="col-span-5 md:col-span-3">
+                        <span class="md:hidden text-[10px] text-gray-400 font-bold mb-1 block">数量</span>
+                        <input type="number" id="qty-${i}" value="0" min="0"
+                            class="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-lg transition-all text-center input-field bg-white"
+                            oninput="updateAll()">
+                    </div>
+                    <div class="col-span-5 md:col-span-3 text-right">
+                        <span class="md:hidden text-[10px] text-gray-400 font-bold mb-1 block">小計</span>
+                        <div class="p-3 text-lg font-bold text-gray-700 truncate">
+                            <span id="subtotal-${i}">0</span>
+                        </div>
+                    </div>
+                    <div class="col-span-2 md:col-span-1 text-center">
+                        <button onclick="clearRow(${i})" class="p-2 text-gray-300 hover:text-red-500 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(row);
+            }
+        }
+
+        function updateAll() {
+            let total = 0;
+            const isTaxEnabled = document.getElementById('taxSwitch').checked;
+
+            for (let i = 1; i <= ROW_COUNT; i++) {
+                const price = parseFloat(document.getElementById(`price-${i}`).value) || 0;
+                const qty = parseFloat(document.getElementById(`qty-${i}`).value) || 0;
+                const sub = price * qty;
+                
+                document.getElementById(`subtotal-${i}`).textContent = sub.toLocaleString();
+                total += sub;
+            }
+
+            if (isTaxEnabled) {
+                total = Math.floor(total * 1.1);
+            }
+
+            const grandTotalEl = document.getElementById('grandTotal');
+            grandTotalEl.textContent = total.toLocaleString();
+        }
+
+        function clearRow(index) {
+            document.getElementById(`price-${index}`).value = '';
+            document.getElementById(`qty-${index}`).value = '0';
+            updateAll();
+        }
+
+        function resetAll() {
+            if(confirm("すべての入力を消去しますか？")) {
+                for (let i = 1; i <= ROW_COUNT; i++) {
+                    document.getElementById(`price-${i}`).value = '';
+                    document.getElementById(`qty-${i}`).value = '0';
+                }
+                document.getElementById('taxSwitch').checked = false;
+                updateAll();
+            }
+        }
+
+        window.onload = initRows;
+    </script>
+</body>
+</html>
+
